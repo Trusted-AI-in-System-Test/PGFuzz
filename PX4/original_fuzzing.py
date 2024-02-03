@@ -9,7 +9,6 @@ import sys, os
 from optparse import OptionParser
 
 import time
-from datetime import datetime
 import random
 import threading
 import subprocess
@@ -25,8 +24,6 @@ import shared_variables
 
 import re
 import math
-
-import json
 
 #------------------------------------------------------------------------------------
 # Global variables
@@ -149,8 +146,9 @@ target_pitch = 1500
 target_yaw = 1500
 
 #------------------------------------------------------------------------------------
+#------------------------------------------------------------------------------------
+# If the RV does not response within 5 seconds, we consider the RV's program crashed.
 def check_liveness():
-    # If the RV does not response within 5 seconds, we consider the RV's program crashed.
     global heartbeat_cnt
 
     end_flag = 0
@@ -280,13 +278,13 @@ def change_parameter(selected_param):
     if range_min == 'X' or range_max == 'X':
         # Case 1-1: min (X) and max (O)
         if range_min == 'X' and range_max != 'X':
-            param_value = random.randint(PARAM_MIN, int(float(range_max)))
+            param_value = random.randint(PARAM_MIN, int(range_max))
             print("[param] selected params: %s, there is no min of valid range, random param value:%d" % (
             read_inputs.param_name[selected_param], param_value))
 
         # Case 1-2: min (O) and max (X)
         elif range_min != 'X' and range_max == 'X':
-            param_value = random.randint(int(float(range_min)), PARAM_MAX)
+            param_value = random.randint(int(range_min), PARAM_MAX)
             print("[param] selected params: %s, there is no max of valid range, random param value:%d" % (
             read_inputs.param_name[selected_param], param_value))
 
@@ -317,7 +315,7 @@ def change_parameter(selected_param):
         print("# Required minimum throttle is %d" % param_value)
 
     if Current_input_val != "null":
-        param_value = int(Current_input_val)
+        param_value = float(Current_input_val)
         print("@@@[Reuse stored input pair] (%s, %s)@@@" % (param_name, Current_input_val))
 
     # 2) Set parameter value
@@ -401,7 +399,6 @@ def test_param():
                                 paramsName[i],
                                 0,
                                 mavutil.mavlink.MAV_PARAM_TYPE_REAL32)
-        
 #------------------------------------------------------------------------------------
 def change_flight_mode(mode):
     
@@ -452,8 +449,9 @@ def change_flight_mode(mode):
 
         time.sleep(1)
 
+
 #------------------------------------------------------------------------------------	
-# --------------------- (Start) Read Robotic Vehicle's states ------------------------
+# --------------------- (Start) READ Robotic Vehicle's states ------------------------
 def handle_heartbeat(msg):
     global heartbeat_cnt
     heartbeat_cnt += 1
@@ -685,8 +683,6 @@ def handle_status(msg):
         gps_failsafe_error = 1
 
     # ------------------------------------------------------------------------------------
-
-# ------------------------------------------------------------------------------------
 def handle_time(msg):
     global system_time
 
@@ -762,43 +758,38 @@ def read_loop():
             handle_heartbeat(msg)
         elif msg_type == "ORBIT_EXECUTION_STATUS":
             handle_circle_status(msg)
-# --------------------- (End) Read Robotic Vehicle's states ------------------------
 
+# --------------------- (End) READ Robotic Vehicle's states ------------------------
 # ------------------------------------------------------------------------------------
-def store_mutated_inputs(custom_file_name=None):
+# ------------------------------------------------------------------------------------
+def store_mutated_inputs():
 
-    # for i in range(3):
-    #     print("***************Policy violation!***************")
+    for i in range(3):
+        print("***************Policy violation!***************")
 
     f1 = open("mutated_log.txt", "r")
     lines = f1.readlines()
 
+    f_itr = open("iteration.txt", "r")
+
     # Store the mutated inputs as a txt file
     # './policies/chute/*.txt'
-    if custom_file_name == None:
-        f_itr = open("iteration.txt", "r")
-        file_name = ""
-        file_name += "./policy_violations/"
-        file_name += f_itr.read()
-        file_name += ".txt"
-        f_itr.close()
-    else:
-        file_name = ""
-        file_name += "./saved_data/"
-        file_name += custom_file_name
-        file_name += ".txt"
+    file_name = ""
+    file_name += "./policy_violations/"
+    file_name += f_itr.read()
+    file_name += ".txt"
 
     f2 = open(file_name, "w")
     f2.writelines(lines)
     f1.close()
     f2.close()
+    f_itr.close()
 
     mutated_log = open("mutated_log.txt", "w")
     mutated_log.close()
 
     # If we detect a policy violation, let's restart the simulator
-    if custom_file_name == None:
-        re_launch()
+    re_launch()
 
 # ------------------------------------------------------------------------------------
 def print_distance(G_dist, P_dist, length, policy, guid):
@@ -886,7 +877,9 @@ def print_distance(G_dist, P_dist, length, policy, guid):
                     fp.close()
                     write_guidance_log(guide_line, action="write")
 
+
 # ------------------------------------------------------------------------------------
+# ---------------(Start) Calculate propositional and global distances-----------------
 def calculate_distance(guidance):
 
     # State global variables
@@ -1812,15 +1805,15 @@ def calculate_distance(guidance):
     target_param_value = 0
 
 # ------------------------------------------------------------------------------------
+# Create a function to send RC values
+# More information about Joystick channels
+# here: https://www.ardusub.com/operators-manual/rc-input-and-output.html#rc-inputs
 def set_rc_channel_pwm(id, pwm=1500):
     """ Set RC channel pwm value
     Args:
         id (TYPE): Channel ID
         pwm (int, optional): Channel pwm value 1100-1900
     """
-    # Create a function to send RC values
-    # More information about Joystick channels
-    # here: https://www.ardusub.com/operators-manual/rc-input-and-output.html#rc-inputs
     if id < 1:
         print("Channel does not exist.")
         return
@@ -1837,6 +1830,7 @@ def set_rc_channel_pwm(id, pwm=1500):
             master.target_system,  # target_system
             master.target_component,  # target_component
             *rc_channel_values)  # RC channel list, in microseconds.
+
 
 # ------------------------------------------------------------------------------------
 def throttle_th():
@@ -2041,8 +2035,7 @@ def pick_up_cmd():
     # input_type = 1
 
     # True: input mutated from guidance, False: randomly mutate an input
-    # Guidance_decision = random.choice([True, False])
-    Guidance_decision = False
+    Guidance_decision = random.choice([True, False])
 
     # b) Randomly select an input from the selected type of inputs
 
@@ -2059,315 +2052,257 @@ def pick_up_cmd():
         execute_env(num=random.randint(0, len(read_inputs.env_name) - 1))
 
 # ------------------------------------------------------------------------------------
-def read_up_cmd(command):
-    global Current_input
-    global Current_input_val
-    global Guidance_decision
-    global RV_alive
-
-    RV_alive = 1
-
-    Current_input = ""
-    Current_input_val = "null"
-    Guidance_decision = False
-
-    command_p = command.split(" ")
-
-    # 1) User commands
-    if command_p[0] == "C":
-        num = read_inputs.cmd_name.index(command_p[1])
-        Current_input_val = command[len(command_p[1])+3:]
-        Current_input_val = Current_input_val[:-1] if Current_input_val[-1] == "\n" else Current_input_val
-        execute_cmd(num=num)
-
-    # 2) Parameters
-    elif command_p[0] == "P":
-        num = read_inputs.param_name.index(command_p[1])
-        Current_input_val = command[len(command_p[1])+3:]
-        Current_input_val = Current_input_val[:-1] if Current_input_val[-1] == "\n" else Current_input_val
-        change_parameter(selected_param=num)
-
-    # 3) Environmental factors
-    elif command_p[0] == "E":
-        num = read_inputs.env_name.index(command_p[1])
-        Current_input_val = command[len(command_p[1])+3:]
-        Current_input_val = Current_input_val[:-1] if Current_input_val[-1] == "\n" else Current_input_val
-        execute_env(num=num)
-
-# --------------------- (Start) Initialisation and testing ---------------------------
 # ------------------------------------------------------------------------------------
-def parse_parameters():
-    global read_inputs
-    # Parsing parameters
-    # To do: update the below path according to a changed target policy
-    f_path_def = ""
-    f_path_def += "./policies/"
-    f_path_def += Current_policy
+# Parsing parameters
+# To do: update the below path according to a changed target policy
+f_path_def = ""
+f_path_def += "./policies/"
+f_path_def += Current_policy
 
-    print("#-----------------------------------------------------------------------------")
-    params_path = ""
-    params_path += f_path_def
-    params_path += "/parameters.txt"
-    read_inputs.parsing_parameter(params_path)
-    print("# Check whether parsing parameters well done or not, received # of params: %d" % len(read_inputs.param_name))
-    # print(read_inputs.param_name)
+print("#-----------------------------------------------------------------------------")
+params_path = ""
+params_path += f_path_def
+params_path += "/parameters.txt"
+read_inputs.parsing_parameter(params_path)
+print("# Check whether parsing parameters well done or not, received # of params: %d" % len(read_inputs.param_name))
+print(read_inputs.param_name)
 
-    cmd_path = ""
-    cmd_path += f_path_def
-    cmd_path += "/cmds.txt"
+cmd_path = ""
+cmd_path += f_path_def
+cmd_path += "/cmds.txt"
 
-    read_inputs.parsing_command(cmd_path)
-    print("# Check whether parsing user commands well done or not, received # of params: %d" % len(read_inputs.cmd_name))
-    # print(read_inputs.cmd_name)
+read_inputs.parsing_command(cmd_path)
+print("# Check whether parsing user commands well done or not, received # of params: %d" % len(read_inputs.cmd_name))
+print(read_inputs.cmd_name)
 
-    env_path = ""
-    env_path += f_path_def
-    env_path += "/envs.txt"
+env_path = ""
+env_path += f_path_def
+env_path += "/envs.txt"
 
-    read_inputs.parsing_env(env_path)
-    print("# Check whether parsing environmental factors well done or not, received # of params: %d" % len(
-        read_inputs.env_name))
-    # print(read_inputs.env_name)
-    print("#-----------------------------------------------------------------------------")
-parse_parameters()
+read_inputs.parsing_env(env_path)
+print("# Check whether parsing environmental factors well done or not, received # of params: %d" % len(
+    read_inputs.env_name))
+print(read_inputs.env_name)
+print("#-----------------------------------------------------------------------------")
 
 #------------------------------------------------------------------------------------
-def parse_command_line():
-    global PARAM_MIN
-    global PARAM_MAX
-    global master
-    global home_lat
-    global home_lon
-    global home_altitude
 
-    # Parse command line arguments (i.e., input and output file)
-    f_input_type = open("input_mutation_type.txt", "r")
-    input_type = f_input_type.readline()
-    if input_type == 'true':
-        print("[DEBUG] User chooses bounded input mutation")
-        PARAM_MIN = 1
-        PARAM_MAX = 10000
+# (Start) Parse command line arguments (i.e., input and output file)
+f_input_type = open("input_mutation_type.txt", "r")
+input_type = f_input_type.readline()
+if input_type == 'true':
+    print("[DEBUG] User chooses bounded input mutation")
+    PARAM_MIN = 1
+    PARAM_MAX = 10000
+else:
+    print("[DEBUG] User chooses unbounded input mutation")
+    PARAM_MIN = 1
+    PARAM_MAX = 999999999999
+# (End) Parse command line arguments (i.e., input and output file)
+
+master.wait_heartbeat()
+
+# request data to be sent at the given rate
+"""
+for i in range(0, 3):
+    master.mav.request_data_stream_send(master.target_system, master.target_component,
+                                        mavutil.mavlink.MAV_DATA_STREAM_ALL, 6, 1)
+"""
+message = master.recv_match(type='VFR_HUD', blocking=True)
+home_altitude = message.alt
+print("home_altitude: %f" % home_altitude)
+
+message = master.recv_match(type='GLOBAL_POSITION_INT', blocking=True)
+home_lat = message.lat
+home_lat = home_lat / 1000
+home_lat = home_lat * 1000
+home_lon = message.lon
+home_lon = home_lon / 1000
+home_lon = home_lon * 1000
+print("home_lat: %f, home_lon: %f" % (home_lat, home_lon))
+
+# Testing --------------------------------------------------------------------------------------
+for i in range(30):
+    P.append(0)
+    Previous_distance.append(0)
+
+waypoints = [
+        (35.5090904347, 127.045094298),
+        (35.509070898, 127.048905867),
+        (35.5063678607, 127.048960654),
+        (35.5061713129, 127.044741936),
+        (35.5078823794, 127.046914506)
+        ]
+
+wp = mavwp.MAVWPLoader()
+seq = 0
+for waypoint in enumerate(waypoints):
+    seq = waypoint[0]
+    lat, lon = waypoint[1]
+    #lon = waypoint[1]
+    altitude = 500
+    autocontinue = 1
+    current = 0
+    param1 = 15.0 # minimum pitch
+    frame = mavutil.mavlink.MAV_FRAME_GLOBAL_RELATIVE_ALT
+    if seq == 0: # first waypoint to takeoff
+        current = 1
+        p = mavutil.mavlink.MAVLink_mission_item_message(master.target_system, master.target_component, seq, frame,
+            mavutil.mavlink.MAV_CMD_NAV_TAKEOFF,
+            current, autocontinue, param1, 0, 0, 0, lat, lon, altitude)
+    """
+    elif seq == len(waypoints) - 1: # last waypoint to land
+        p = mavutil.mavlink.MAVLink_mission_item_message(master.target_system, master.target_component, seq, frame,
+            mavutil.mavlink.MAV_CMD_NAV_LAND,
+            current, autocontinue, 0, 0, 0, 0, lat, lon, altitude)
     else:
-        print("[DEBUG] User chooses unbounded input mutation")
-        PARAM_MIN = 1
-        PARAM_MAX = 999999999999
-    # (End) Parse command line arguments (i.e., input and output file)
-
-    master.wait_heartbeat()
-
-    # request data to be sent at the given rate
+        p = mavutil.mavlink.MAVLink_mission_item_message(master.target_system, master.target_component, seq, frame,
+            mavutil.mavlink.MAV_CMD_NAV_WAYPOINT,
+            current, autocontinue, 0, 0, 0, 0, lat, lon, altitude)
     """
-    for i in range(0, 3):
-        master.mav.request_data_stream_send(master.target_system, master.target_component,
-                                            mavutil.mavlink.MAV_DATA_STREAM_ALL, 6, 1)
-    """
-    message = master.recv_match(type='VFR_HUD', blocking=True)
-    home_altitude = message.alt
-    print("home_altitude: %f" % home_altitude)
+    wp.add(p)
 
-    message = master.recv_match(type='GLOBAL_POSITION_INT', blocking=True)
-    home_lat = message.lat
-    home_lat = home_lat / 1000
-    home_lat = home_lat * 1000
-    home_lon = message.lon
-    home_lon = home_lon / 1000
-    home_lon = home_lon * 1000
-    print("home_lat: %f, home_lon: %f" % (home_lat, home_lon))
-parse_command_line()
 
-#------------------------------------------------------------------------------------
-def initial_testing_and_arming(fuzz_during_mission, waypoints):
-    global P
-    global Previous_distance
-    global master
-    global goal_throttle
-    global Current_policy
-    global Precondition_path
+# Send Home location
+home_location = waypoints[0]
+cmd_set_home(home_location, 0)
+msg = master.recv_match(type=['COMMAND_ACK'],blocking=True)
+print("%s" % msg)
+print("Set home location: %f, %f" %(home_location[0], home_location[1]))
 
-    for i in range(30):
-        P.append(0)
-        Previous_distance.append(0)
+#time.sleep(1)
 
-    wp = mavwp.MAVWPLoader()
-    seq = 0
-    for waypoint in enumerate(waypoints):
-        seq = waypoint[0]
-        lat, lon = waypoint[1]
-        #lon = waypoint[1]
-        altitude = 500
-        autocontinue = 1
-        current = 0
-        param1 = 15.0 # minimum pitch
-        frame = mavutil.mavlink.MAV_FRAME_GLOBAL_RELATIVE_ALT
-        if seq == 0: # first waypoint to takeoff
-            current = 1
-            p = mavutil.mavlink.MAVLink_mission_item_message(master.target_system, master.target_component, seq, frame,
-                mavutil.mavlink.MAV_CMD_NAV_TAKEOFF,
-                current, autocontinue, param1, 0, 0, 0, lat, lon, altitude)
-        elif seq == len(waypoints) - 1: # last waypoint to land
-            p = mavutil.mavlink.MAVLink_mission_item_message(master.target_system, master.target_component, seq, frame,
-                mavutil.mavlink.MAV_CMD_NAV_WAYPOINT,
-                current, autocontinue, 0, 0, 0, 0, lat, lon, altitude)
-            """
-            p = mavutil.mavlink.MAVLink_mission_item_message(master.target_system, master.target_component, seq, frame,
-                mavutil.mavlink.MAV_CMD_NAV_LAND,
-                current, autocontinue, 0, 0, 0, 0, lat, lon, altitude)
-            """
-        else:
-            p = mavutil.mavlink.MAVLink_mission_item_message(master.target_system, master.target_component, seq, frame,
-                mavutil.mavlink.MAV_CMD_NAV_WAYPOINT,
-                current, autocontinue, 0, 0, 0, 0, lat, lon, altitude)
-        wp.add(p)
+# Send Waypoint to airframe
+print("Send Waypoint to airframe")
+master.waypoint_clear_all_send()
+master.waypoint_count_send(wp.count())
 
-    # Send Home location
-    home_location = waypoints[0]
-    cmd_set_home(home_location, 0)
-    msg = master.recv_match(type=['COMMAND_ACK'],blocking=True)
+for i in range(wp.count()):
+    msg = master.recv_match(type=['MISSION_REQUEST'],blocking=True)
     print("%s" % msg)
-    print("Set home location: %f, %f" %(home_location[0], home_location[1]))
+    master.mav.send(wp.wp(msg.seq))
+    print("Sending waypoint %d" % msg.seq)
 
-    #time.sleep(1)
+msg = master.recv_match(type=['MISSION_ACK'],blocking=True) # OKAY
+print ("%s, %d" % (msg, msg.type))
 
-    # Send Waypoint to airframe
-    print("Send Waypoint to airframe")
-    master.waypoint_clear_all_send()
-    master.waypoint_count_send(wp.count())
+# Read Waypoint from airframe
+master.waypoint_request_list_send()
+waypoint_count = 0
 
-    for i in range(wp.count()):
-        msg = master.recv_match(type=['MISSION_REQUEST'],blocking=True)
-        print("%s" % msg)
-        master.mav.send(wp.wp(msg.seq))
-        print("Sending waypoint %d" % msg.seq)
+msg = master.recv_match(type=['MISSION_COUNT'],blocking=True)
+waypoint_count = msg.count
+print("%d", msg.count)
 
-    msg = master.recv_match(type=['MISSION_ACK'],blocking=True) # OKAY
-    print ("%s, %d" % (msg, msg.type))
-
-    # Read Waypoint from airframe
-    master.waypoint_request_list_send()
-    waypoint_count = 0
-
-    msg = master.recv_match(type=['MISSION_COUNT'],blocking=True)
-    waypoint_count = msg.count
-    print("%d", msg.count)
-
-    for i in range(waypoint_count):
-        master.waypoint_request_send(i)
-        msg = master.recv_match(type=['MISSION_ITEM'],blocking=True)
-        print ("Receving waypoint %d" % msg.seq)
-        print ("%s" % msg)
-
-    master.mav.mission_ack_send(master.target_system, master.target_component, 0) # OKAY
-
-    # Change Mission Mode
-    PX4_CUSTOM_MAIN_MODE_AUTO = 4.0
-    PX4_CUSTOM_SUB_MODE_AUTO_MISSION = 4.0
-    PX4_CUSTOM_SUB_MODE_AUTO_RTL = 5.0
-
-    auto_mode_flags =  mavutil.mavlink.MAV_MODE_FLAG_AUTO_ENABLED | mavutil.mavlink.MAV_MODE_FLAG_STABILIZE_ENABLED | mavutil.mavlink.MAV_MODE_FLAG_GUIDED_ENABLED
-
-    PX4_MAV_MODE = mavutil.mavlink.MAV_MODE_FLAG_CUSTOM_MODE_ENABLED | auto_mode_flags
-
-    #master.mav.set_mode_send(1, PX4_MAV_MODE, PX4_CUSTOM_MAIN_MODE_AUTO)
-
-    #msg = master.recv_match(type=['COMMAND_ACK'], blocking=True)
-    #print ("%s", msg)
-
-    # Send Heartbeat
-    master.mav.heartbeat_send(mavutil.mavlink.MAV_TYPE_GCS, mavutil.mavlink.MAV_AUTOPILOT_INVALID, 192, 0, 4)
-
-    master.wait_heartbeat()
-    print("HEARTBEAT OK\n")
-
-    change_flight_mode("hold")
-    time.sleep(5)
-
-    # Arming
-    master.mav.command_long_send(master.target_system, master.target_component, mavutil.mavlink.MAV_CMD_COMPONENT_ARM_DISARM,
-                0, 1, 0, 0, 0, 0, 0, 0)
-
-    msg = master.recv_match(type=['COMMAND_ACK'],blocking=True)
+for i in range(waypoint_count):
+    master.waypoint_request_send(i)
+    msg = master.recv_match(type=['MISSION_ITEM'],blocking=True)
+    print ("Receving waypoint %d" % msg.seq)
     print ("%s" % msg)
 
-    #time.sleep(2)
+master.mav.mission_ack_send(master.target_system, master.target_component, 0) # OKAY
 
-    print ("%d" % master.target_system)
-    print ("%d" % master.target_component)
+# Change Mission Mode
+PX4_CUSTOM_MAIN_MODE_AUTO = 4.0
+PX4_CUSTOM_SUB_MODE_AUTO_MISSION = 4.0
+PX4_CUSTOM_SUB_MODE_AUTO_RTL = 5.0
 
-    # master.mav.command_long_send(
-    #                 master.target_system,  # target_system
-    #                 master.target_component, # target_component
-    #                 mavutil.mavlink.MAV_CMD_NAV_TAKEOFF, # command
-    #                 0, # confirmation
-    #                 0, # param1
-    #                 0, # param2
-    #                 0, # param3
-    #                 0, # param4
-    #                 0, # param5
-    #                 0, # param6
-    #                 50) # param7- altitude
-    # msg = master.recv_match(type=['COMMAND_ACK'],blocking=True)
-    # print ("%s" % msg)
+auto_mode_flags =  mavutil.mavlink.MAV_MODE_FLAG_AUTO_ENABLED | mavutil.mavlink.MAV_MODE_FLAG_STABILIZE_ENABLED | mavutil.mavlink.MAV_MODE_FLAG_GUIDED_ENABLED
 
-    goal_throttle = 1500
-    t1 = threading.Thread(target=throttle_th, args=())
-    t1.daemon = True
-    t1.start()
+PX4_MAV_MODE = mavutil.mavlink.MAV_MODE_FLAG_CUSTOM_MODE_ENABLED | auto_mode_flags
 
-    t2 = threading.Thread(target=read_loop, args=())
-    t2.daemon = True
-    t2.start()
+#master.mav.set_mode_send(1, PX4_MAV_MODE, PX4_CUSTOM_MAIN_MODE_AUTO)
 
-    mutated_log = open("mutated_log.txt", "w")
-    mutated_log.close()
+#msg = master.recv_match(type=['COMMAND_ACK'], blocking=True)
+#print ("%s", msg)
 
-    guidance_log = open("guidance_log.txt", "w")
-    guidance_log.close()
+# Send Heartbeat
+master.mav.heartbeat_send(mavutil.mavlink.MAV_TYPE_GCS, mavutil.mavlink.MAV_AUTOPILOT_INVALID, 192, 0, 4)
 
+master.wait_heartbeat()
+print("HEARTBEAT OK\n")
 
-    if fuzz_during_mission:
-        # MISSION START
-        master.mav.command_long_send(1, 1, mavutil.mavlink.MAV_CMD_MISSION_START, 0, 0, 0, 0, 0, 0, 0, 0)
-        #msg = master.recv_match(type=['COMMAND_ACK'],blocking=True)
-        #print msg
+change_flight_mode("hold")
+time.sleep(5)
 
-        time.sleep(20)
-    else:
-        #change_flight_mode("altitude")
-        change_flight_mode("hold")
+# Arming
+master.mav.command_long_send(
+    		master.target_system,
+		master.target_component,
+	    	mavutil.mavlink.MAV_CMD_COMPONENT_ARM_DISARM,
+    		0,
+    		1, 0, 0, 0, 0, 0, 0)
 
-    # Set some preconditions to test a policy
-    # To do: when I switch to another target policy, I need to update the 'Precondition_path'.
-    Precondition_path += "./policies/"
-    Precondition_path += Current_policy
-    Precondition_path += "/preconditions.txt"
-    set_preconditions(Precondition_path)
+msg = master.recv_match(type=['COMMAND_ACK'],blocking=True)
+print ("%s" % msg)
 
-    # Check liveness of the RV software
-    t3 = threading.Thread(target=check_liveness, args=())
-    t3.daemon = True
-    t3.start()
+#time.sleep(2)
 
-
-    # for i in range(0, 11):
-    #     # Debug
-    #     print("Try to set %s flight mode!" % flight_mode[i])
-    #     change_flight_mode(flight_mode[i])
-    #     time.sleep(5)
-waypoints = [
-    (35.5090904347, 127.045094298),
-    (35.509070898, 127.048905867),
-    (35.5063678607, 127.048960654),
-    (35.5061713129, 127.044741936),
-    (35.5078823794, 127.046914506)
-    ]
-# --------------------- (End) Initialisation and testing -----------------------------
-
-
-#------------------------------------------------------------------------------------
-# Original's main loop:
+print ("%d" % master.target_system)
+print ("%d" % master.target_component)
 """
-initial_testing_and_arming(False, waypoints)
+master.mav.command_long_send(
+                master.target_system,  # target_system
+                master.target_component, # target_component
+                mavutil.mavlink.MAV_CMD_NAV_TAKEOFF, # command
+                0, # confirmation
+                0, # param1
+                0, # param2
+                0, # param3
+                0, # param4
+                0, # param5
+                0, # param6
+                50) # param7- altitude
+msg = master.recv_match(type=['COMMAND_ACK'],blocking=True)
+print ("%s" % msg)
+"""
+goal_throttle = 1500
+t1 = threading.Thread(target=throttle_th, args=())
+t1.daemon = True
+t1.start()
+
+t2 = threading.Thread(target=read_loop, args=())
+t2.daemon = True
+t2.start()
+
+mutated_log = open("mutated_log.txt", "w")
+mutated_log.close()
+
+guidance_log = open("guidance_log.txt", "w")
+guidance_log.close()
+
+# MISSION START
+master.mav.command_long_send(1, 1, mavutil.mavlink.MAV_CMD_MISSION_START, 0, 0, 0, 0, 0, 0, 0, 0)
+#msg = master.recv_match(type=['COMMAND_ACK'],blocking=True)
+#print msg
+
+time.sleep(10)
+#change_flight_mode("altitude")
+change_flight_mode("hold")
+
+# Set some preconditions to test a policy
+# To do: when I switch to another target policy, I need to update the 'Precondition_path'.
+Precondition_path += "./policies/"
+Precondition_path += Current_policy
+Precondition_path += "/preconditions.txt"
+set_preconditions(Precondition_path)
+
+# Check liveness of the RV software
+t3 = threading.Thread(target=check_liveness, args=())
+t3.daemon = True
+t3.start()
+
+"""
+for i in range(0, 11):
+    # Debug
+    print("Try to set %s flight mode!" % flight_mode[i])
+    change_flight_mode(flight_mode[i])
+    time.sleep(5)
+"""
+
+# Main loop
 while True:
+
     global drone_status
     global executing_commands
     global home_altitude
@@ -2419,98 +2354,5 @@ while True:
         Armed = 0
         for i in range(1, 5):
             print("@@@@@@@@@@ Drone losts control. It is in mayday and going down @@@@@@@@@@")
-"""
 
-#------------------------------------------------------------------------------------
-# # Adrian's main loop:
-test_id = "019"
-
-fuzz_during_mission = True
-random_num_fuzzes = True
-num_fuzzes = random.randint(10,30) if random_num_fuzzes else 20
-
-random_mission = True
-random_mission_radius = 0.0005000000
-if random_mission:
-    takeoff = (35.5090904347, 127.045094298)
-    waypoints = [takeoff]
-    for wp_i in range(4):
-        wp_x =  random.uniform(takeoff[0]-random_mission_radius, takeoff[0]+random_mission_radius)
-        wp_y =  random.uniform(takeoff[1]-random_mission_radius, takeoff[1]+random_mission_radius)
-        waypoints.append((wp_x, wp_y))
-
-use_saved_mission = False
-saved_mission_loc = "./saved_data/000_metadata.json"
-if use_saved_mission:
-    saved_mission_file = open(saved_mission_loc, "r")
-    saved_mission_dict = json.load(saved_mission_file)
-    saved_mission_file.close()
-    waypoints = saved_mission_dict["mission"]
-
-use_saved_fuzz = False
-saved_fuzz_loc = "./saved_data/000_commands.txt"
-if use_saved_fuzz:     
-    saved_fuzz_file = open(saved_mission_dict["fuzzed_commands"], "r")
-    saved_fuzzes = saved_fuzz_file.readlines()
-    saved_fuzz_file.close()
-    num_fuzzes = len(saved_fuzzes) # Overwrites
-
-initial_testing_and_arming(fuzz_during_mission, waypoints)
-for f in range(num_fuzzes):
-    global drone_status
-    global home_altitude
-    global current_altitude
-
-    if True: #drone_status == 4:
-        if use_saved_fuzz:
-            read_up_cmd(saved_fuzzes[f])
-        else:
-            pick_up_cmd()
-
-        time.sleep(5)
-
-        for i in range(4):
-            set_rc_channel_pwm(i + 1, 1500)
-    else:
-        print("Drone is no longer active.")
-        print("Drone_status:%d" %drone_status)
-        # initial_testing_and_arming()
-
-current_datetime = datetime.now()
-ulg_end_time = current_datetime.strftime("%Y-%m-%d-%H-%M-%S")
-
-metadata = {
-    "autopilot": "PX4",
-    "simulator": "JMavSim",
-    "reduced_parameters": True, # Didn't fuzz on all possible variables
-    "reduction_method": "PGFuzz", # Can try LLM method to choose variables too
-    "parameter_min": PARAM_MIN,
-    "parameter_max": PARAM_MAX,
-    "use_saved_fuzz": use_saved_fuzz,
-    "saved_fuzz_loc": saved_fuzz_loc,
-    "policy_guided": False,
-    "policy_violated": False,
-    "fuzz_during_mission": fuzz_during_mission,
-    "random_mission": random_mission,
-    "use_saved_mission": use_saved_mission,
-    "saved_mission_loc": saved_mission_loc,
-    "mission": waypoints,
-    "random_num_fuzzes": random_num_fuzzes,
-    "ulg_end_time": ulg_end_time
-}
-
-# Save metadata file
-with open("./saved_data/"+test_id+"_metadata.json", 'w') as json_file:
-    json.dump(metadata, json_file)
-
-# Save commands file
-store_mutated_inputs(test_id+"_commands")
-
-# Update ulg file mappings
-mapping_file = open("./saved_data/ulg_mappings.txt", "a")
-mapping_file.write("\ntest_id: "+test_id+" - ulg_end_time: "+ulg_end_time)
-mapping_file.close()
-
-print("#"*30, "\n")
-print("#"*30, "\n")
-print("#"*30, "\n")
+print("-------------------- Fuzzing End --------------------")
