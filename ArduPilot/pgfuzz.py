@@ -22,7 +22,7 @@ c = 'gnome-terminal -- python2 ' + PGFUZZ_HOME + 'ArduPilot/fuzzing.py &'
 handle = Popen(c, stdin=PIPE, stderr=PIPE, stdout=PIPE, shell=True)
 
 while True:
-	time.sleep(1)
+	time.sleep(90)
 
 	f = open("restart.txt", "r")
 

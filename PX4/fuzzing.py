@@ -7,6 +7,7 @@
 
 import sys, os
 from optparse import OptionParser
+from random import randint
 
 import time
 from datetime import datetime
@@ -2423,7 +2424,7 @@ while True:
 
 #------------------------------------------------------------------------------------
 # # Adrian's main loop:
-test_id = "019"
+test_id = str(randint(0, 1000))
 
 fuzz_during_mission = True
 random_num_fuzzes = True
@@ -2500,7 +2501,12 @@ metadata = {
 }
 
 # Save metadata file
-with open("./saved_data/"+test_id+"_metadata.json", 'w') as json_file:
+
+if not os.path.exists("./saved_data"):
+    os.mkdir("./saved_data")
+
+
+with open("./saved_data/"+test_id+"_metadata.json", 'w+') as json_file:
     json.dump(metadata, json_file)
 
 # Save commands file
@@ -2511,6 +2517,7 @@ mapping_file = open("./saved_data/ulg_mappings.txt", "a")
 mapping_file.write("\ntest_id: "+test_id+" - ulg_end_time: "+ulg_end_time)
 mapping_file.close()
 
+print("Test ID: " + test_id )
 print("#"*30, "\n")
 print("#"*30, "\n")
 print("#"*30, "\n")

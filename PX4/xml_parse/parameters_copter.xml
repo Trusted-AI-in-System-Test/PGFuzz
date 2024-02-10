@@ -6345,7 +6345,7 @@
       <decimal>1</decimal>
       <increment>0.5</increment>
     </parameter>
-    <parameter name="MIS_DIST_1WP" default="900" type="FLOAT">
+    <parameter name="MIS_DIST_1WP" default="0" type="FLOAT">
       <short_desc>Maximal horizontal distance from home to first waypoint</short_desc>
       <long_desc>Failsafe check to prevent running mission stored from previous flight at a new takeoff location. Set a value of zero or less to disable. The mission will not be started if the current waypoint is more distant than MIS_DIST_1WP from the home position.</long_desc>
       <min>0</min>
@@ -6354,7 +6354,7 @@
       <decimal>1</decimal>
       <increment>100</increment>
     </parameter>
-    <parameter name="MIS_DIST_WPS" default="900" type="FLOAT">
+    <parameter name="MIS_DIST_WPS" default="0" type="FLOAT">
       <short_desc>Maximal horizontal distance between waypoint</short_desc>
       <long_desc>Failsafe check to prevent running missions which are way too big. Set a value of zero or less to disable. The mission will not be started if any distance between two subsequent waypoints is greater than MIS_DIST_WPS.</long_desc>
       <min>0</min>
