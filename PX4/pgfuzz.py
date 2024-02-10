@@ -47,17 +47,12 @@ def main(argv):
 
 	c = 'gnome-terminal -- python2 ' + PGFUZZ_HOME + 'PX4/open_simulator.py &'
 	handle = Popen(c, stdin=PIPE, stderr=PIPE, stdout=PIPE, shell=True)
-	output, errors = handle.communicate()
-	print(output)
-	print(errors)
 
-	time.sleep(140)
+	# Sleep to allow sufficient time for simulator to start
+	time.sleep(120)
 	c = 'gnome-terminal -- python2 ' + PGFUZZ_HOME + 'PX4/fuzzing.py -i ' + input_type + '&'
 	handle = Popen(c, stdin=PIPE, stderr=PIPE, stdout=PIPE, shell=True)
 
-	output, errors = handle.communicate()
-	print(output)
-	print(errors)
 
 	iteration = 1
 	f2 = open("iteration.txt", "w")
@@ -65,7 +60,7 @@ def main(argv):
 	f2.close()
 
 	while True:
-		print("We made it to the loop")
+		## Sleep between runs to allow for sufficent length runs
 		time.sleep(60)
 
 		f = open("restart.txt", "r")
@@ -82,16 +77,11 @@ def main(argv):
 
 			c = 'gnome-terminal -- python2 ' + PGFUZZ_HOME + 'PX4/open_simulator.py &'
 			handle = Popen(c, stdin=PIPE, stderr=PIPE, stdout=PIPE, shell=True)
-			output, errors = handle.communicate()
-			print(output)
-			print(errors)
+
 
 			time.sleep(50)
 			c = 'gnome-terminal -- python2 ' + PGFUZZ_HOME + 'PX4/fuzzing.py &'
 			handle = Popen(c, stdin=PIPE, stderr=PIPE, stdout=PIPE, shell=True)
-			output, errors = handle.communicate()
-			print(output)
-			print(errors)
 
 if __name__ == "__main__":
    main(sys.argv[1:])
