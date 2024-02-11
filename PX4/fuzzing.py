@@ -21,6 +21,7 @@ sys.path.append(os.path.join(os.path.dirname(os.path.realpath(__file__)), '../ma
 from pymavlink import mavutil, mavwp
 from pymavlink import mavextra
 from pymavlink import mavexpression
+from save_data import dump_command_log, save_run_information
 import read_inputs
 import shared_variables
 
@@ -149,6 +150,8 @@ target_roll = 1500
 target_pitch = 1500
 target_yaw = 1500
 
+SAVED_DATA_DIR = "./saved_data"
+
 #------------------------------------------------------------------------------------
 def check_liveness():
     # If the RV does not response within 5 seconds, we consider the RV's program crashed.
@@ -158,7 +161,9 @@ def check_liveness():
     while end_flag == 0:
 
         if heartbeat_cnt < 1:
-            store_mutated_inputs()
+            print("***************Simulator Crash!***************")
+            print("This could be due to a policy violation or otherwise")
+            store_policy_violating_inputs()
             # The RV software is crashed
             f = open("shared_variables.txt", "w")
             f.write("reboot")
@@ -766,40 +771,14 @@ def read_loop():
 # --------------------- (End) Read Robotic Vehicle's states ------------------------
 
 # ------------------------------------------------------------------------------------
-def store_mutated_inputs(custom_file_name=None):
-
-    # for i in range(3):
-    #     print("***************Policy violation!***************")
-
-    f1 = open("mutated_log.txt", "r")
-    lines = f1.readlines()
-
-    # Store the mutated inputs as a txt file
-    # './policies/chute/*.txt'
-    if custom_file_name == None:
-        f_itr = open("iteration.txt", "r")
-        file_name = ""
-        file_name += "./policy_violations/"
-        file_name += f_itr.read()
-        file_name += ".txt"
-        f_itr.close()
-    else:
-        file_name = ""
-        file_name += "./saved_data/"
-        file_name += custom_file_name
-        file_name += ".txt"
-
-    f2 = open(file_name, "w")
-    f2.writelines(lines)
-    f1.close()
-    f2.close()
-
-    mutated_log = open("mutated_log.txt", "w")
-    mutated_log.close()
-
-    # If we detect a policy violation, let's restart the simulator
-    if custom_file_name == None:
-        re_launch()
+def store_policy_violating_inputs():   
+    f_itr = open("iteration.txt", "r")
+    file_name = "policy_violations/"
+    file_name += f_itr.read()
+    file_name += ".txt"
+    f_itr.close()
+    
+    dump_command_log(file_name)
 
 # ------------------------------------------------------------------------------------
 def print_distance(G_dist, P_dist, length, policy, guid):
@@ -814,7 +793,11 @@ def print_distance(G_dist, P_dist, length, policy, guid):
     print("#-----------------------------------------------------------------------------")
 
     if G_dist < 0:
-        store_mutated_inputs()
+        print("***************Policy violation!***************")
+        store_policy_violating_inputs()
+
+        # If we detect a policy violation, let's restart the simulator
+        re_launch()
 
     global Current_policy_P_length
     global Previous_distance
@@ -2477,8 +2460,6 @@ for f in range(num_fuzzes):
         print("Drone_status:%d" %drone_status)
         # initial_testing_and_arming()
 
-current_datetime = datetime.now()
-ulg_end_time = current_datetime.strftime("%Y-%m-%d-%H-%M-%S")
 
 metadata = {
     "autopilot": "PX4",
@@ -2497,26 +2478,9 @@ metadata = {
     "saved_mission_loc": saved_mission_loc,
     "mission": waypoints,
     "random_num_fuzzes": random_num_fuzzes,
-    "ulg_end_time": ulg_end_time
 }
 
-# Save metadata file
-
-if not os.path.exists("./saved_data"):
-    os.mkdir("./saved_data")
-
-
-with open("./saved_data/"+test_id+"_metadata.json", 'w+') as json_file:
-    json.dump(metadata, json_file)
-
-# Save commands file
-store_mutated_inputs(test_id+"_commands")
-
-# Update ulg file mappings
-mapping_file = open("./saved_data/ulg_mappings.txt", "a")
-mapping_file.write("\ntest_id: "+test_id+" - ulg_end_time: "+ulg_end_time)
-mapping_file.close()
-
+save_run_information(test_id, metadata)
 print("Test ID: " + test_id )
 print("#"*30, "\n")
 print("#"*30, "\n")
