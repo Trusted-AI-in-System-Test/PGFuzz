@@ -775,10 +775,10 @@ def store_policy_violating_inputs():
     f_itr = open("iteration.txt", "r")
     file_name = "policy_violations/"
     file_name += f_itr.read()
-    file_name += ".txt"
+    file_name += "-policy_violation.txt"
     f_itr.close()
     
-    dump_command_log(file_name)
+    dump_command_log(file_name, test_id)
 
 # ------------------------------------------------------------------------------------
 def print_distance(G_dist, P_dist, length, policy, guid):
