@@ -21,7 +21,7 @@ sys.path.append(os.path.join(os.path.dirname(os.path.realpath(__file__)), '../ma
 from pymavlink import mavutil, mavwp
 from pymavlink import mavextra
 from pymavlink import mavexpression
-from save_data import dump_command_log, save_run_information
+from save_data import dump_command_log, save_run_information, extract_ulg
 import read_inputs
 import shared_variables
 
@@ -779,6 +779,7 @@ def store_policy_violating_inputs():
     f_itr.close()
     
     dump_command_log(file_name, test_id)
+    extract_ulg(test_id, file_name[:-4] + "_run_log")
 
 # ------------------------------------------------------------------------------------
 def print_distance(G_dist, P_dist, length, policy, guid):
@@ -2464,6 +2465,9 @@ for f in range(num_fuzzes):
 metadata = {
     "autopilot": "PX4",
     "simulator": "JMavSim",
+    "pgfuzz_commit": subprocess.check_output("git rev-parse HEAD", shell=True)[:-1],
+    "px4_commit": subprocess.check_output("cd " + os.environ["PX4_HOME"] + " && git rev-parse HEAD", shell=True)[:-1],
+    "vm_version": os.environ["VM_VERSION"],
     "reduced_parameters": True, # Didn't fuzz on all possible variables
     "reduction_method": "PGFuzz", # Can try LLM method to choose variables too
     "parameter_min": PARAM_MIN,
@@ -2478,6 +2482,7 @@ metadata = {
     "saved_mission_loc": saved_mission_loc,
     "mission": waypoints,
     "random_num_fuzzes": random_num_fuzzes,
+    "copy_to_isilon": True
 }
 
 save_run_information(test_id, metadata)

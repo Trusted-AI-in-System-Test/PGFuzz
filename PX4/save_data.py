@@ -1,8 +1,11 @@
 import os
 import json
+import shutil
 from datetime import datetime
+from subprocess import call
 
 SAVE_PATH = "./saved_data"
+ISILON_PATH = "/mnt/isilon/PGFuzz_Runs"
 
 def _create_save_dir(test_id):
     if not os.path.exists(SAVE_PATH):
@@ -10,6 +13,23 @@ def _create_save_dir(test_id):
     
     if not os.path.exists(SAVE_PATH + "/" + test_id):
         os.mkdir(SAVE_PATH + "/" + test_id)
+
+def extract_ulg(test_id, output_folder):
+    # Find most recently created ulg i.e. the one created from the most recent (our) run
+    current_datetime = datetime.now()
+    current_day = current_datetime.strftime("%Y-%m-%d")
+    filepath = "/home/pgfuzz/pgfuzz/px4_pgfuzz/build/px4_sitl_default/rootfs/log/" + current_day
+    files = [os.path.join(filepath, f) for f in os.listdir(filepath)]
+
+    ulg_file_path =  max(files, key=os.path.getmtime)
+    ulg_copy_location = SAVE_PATH + "/" + test_id + "/run_log.ulg"
+    shutil.copyfile(ulg_file_path, ulg_copy_location)   
+    
+    command = "ulog2csv " + ulg_copy_location + " -o " + SAVE_PATH + "/" + test_id + "/" + output_folder
+    call(command, shell=True)
+
+    os.remove(ulg_copy_location)
+
 
 def dump_command_log(filename, test_id):
     _create_save_dir(test_id)
@@ -32,10 +52,11 @@ def save_run_information(test_id, metadata):
     current_datetime = datetime.now()
     ulg_end_time = current_datetime.strftime("%Y-%m-%d-%H-%M-%S")
 
+    print("Saving commands and run metadata")   
     # Save metadata file
     with open(SAVE_PATH + "/" + test_id + "/metadata.json", 'w+') as json_file:
         json.dump(metadata, json_file)
-    
+ 
     # Save commands file
     file_name = "commands.txt"
     dump_command_log(file_name, test_id)
@@ -44,4 +65,8 @@ def save_run_information(test_id, metadata):
     mapping_file = open(SAVE_PATH + "/ulg_mappings.txt", "a")
     mapping_file.write("\ntest_id: "+test_id+" - ulg_end_time: "+ ulg_end_time)
     mapping_file.close()
-        
+    
+    print("Saving ULG file")
+    extract_ulg(test_id, "ulg_logs")
+
+    
