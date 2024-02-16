@@ -69,4 +69,14 @@ def save_run_information(test_id, metadata):
     print("Saving ULG file")
     extract_ulg(test_id, "ulg_logs")
 
+    current_day = current_datetime.strftime("%Y-%m-%d")
+
+    if not metadata["copy_to_isilon"]:
+        return
     
+    isilon_save_path = SAVE_PATH + "/" + test_id, ISILON_PATH + "/" + current_day + "/" + test_id
+    if not os.exists(isilon_save_path):
+        print("***CANNOT SAVE TO ISILON - ISILON SHARE IS NOT MOUNTED")
+        return
+
+    shutil.copy(isilon_save_path)
