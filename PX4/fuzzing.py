@@ -2467,7 +2467,7 @@ metadata = {
     "simulator": "JMavSim",
     "pgfuzz_commit": subprocess.check_output("git rev-parse HEAD", shell=True)[:-1],
     "px4_commit": subprocess.check_output("cd " + os.environ["PX4_HOME"] + " && git rev-parse HEAD", shell=True)[:-1],
-    "vm_version": os.environ["VM_VERSION"],
+    "vm_version": os.environ.get("VM_VERSION", "Not applicable"),
     "reduced_parameters": True, # Didn't fuzz on all possible variables
     "reduction_method": "PGFuzz", # Can try LLM method to choose variables too
     "parameter_min": PARAM_MIN,

@@ -75,8 +75,9 @@ def save_run_information(test_id, metadata):
         return
     
     isilon_save_path = SAVE_PATH + "/" + test_id, ISILON_PATH + "/" + current_day + "/" + test_id
-    if not os.exists(isilon_save_path):
+    if not os.path.isdir(isilon_save_path):
         print("***CANNOT SAVE TO ISILON - ISILON SHARE IS NOT MOUNTED")
+        print("Have you made sure to add your username and password to /etc/fstab?")
         return
 
     shutil.copy(isilon_save_path)
