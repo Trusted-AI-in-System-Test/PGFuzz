@@ -74,10 +74,11 @@ def save_run_information(test_id, metadata):
     if not metadata["copy_to_isilon"]:
         return
     
-    isilon_save_path = SAVE_PATH + "/" + test_id, ISILON_PATH + "/" + current_day + "/" + test_id
-    if not os.path.isdir(isilon_save_path):
+    if not os.path.isdir(ISILON_PATH):
         print("***CANNOT SAVE TO ISILON - ISILON SHARE IS NOT MOUNTED")
         print("Have you made sure to add your username and password to /etc/fstab?")
         return
-
-    shutil.copy(isilon_save_path)
+    
+    isilon_save_path = ISILON_PATH + "/" + current_day + "/" + test_id
+    print(isilon_save_path)
+    shutil.copytree(SAVE_PATH + "/" + test_id, isilon_save_path)
