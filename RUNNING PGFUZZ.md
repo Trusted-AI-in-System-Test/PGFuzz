@@ -16,7 +16,16 @@ Username: pgfuzz
 Password: pgfuzz
 ```
 
-### 2. Make PX4 and JMavsim
+### 2. Configure Ision
+
+Open the /etc/fstab file and add the following line:
+```
+//nasr.man.ac.uk/epsrss$/snapped/replicated/taiist /mnt/isilon cifs username=<your username>,password=<university password>,domain=ds.man.ac.uk,uid=1000,gid=1000,auto
+```
+
+Reboot the VM
+
+### 3. Make PX4 and JMavsim
 
 >💡*Efforts to automate running PGFuzz, and data collection are ongoing. For now, please follow these steps.*
 
@@ -34,14 +43,14 @@ make px4_sitl_default jmavsim
 Wait until the Jmavsim window appears. It should look like this:
 ![JmavSim Window](img/image.png)
 
-### 3. Open QGroundControl
+### 4. Open QGroundControl
 
 Open a new terminal tab/window and run the following command:
 `~/Downloads/QGroundControl.AppImage`
 
 The QGroundControl window should now open. There may be scary / confusing log outputs from QGroundControl but these are normal.
 
-### 4. Run Fuzzing
+### 5. Run Fuzzing
 
 Open a new terminal tab / window and run the following commands
 ```
