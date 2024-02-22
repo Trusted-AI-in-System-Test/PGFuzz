@@ -80,5 +80,5 @@ def save_run_information(test_id, metadata):
         return
     
     isilon_save_path = ISILON_PATH + "/" + current_day + "/" + test_id
-    print(isilon_save_path)
+    print("Save path: " + isilon_save_path)
     shutil.copytree(SAVE_PATH + "/" + test_id, isilon_save_path)
