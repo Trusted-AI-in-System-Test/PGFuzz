@@ -18,17 +18,34 @@ Password: pgfuzz
 
 ### 2. Configure Ision
 
-Open the /etc/fstab file and add the following line:
+> ⚠️
+> **Isilon is only accessible when connected to Eduroam. Please ignore this step if you don't have access to Eduroam.**
+
+Open the the `/etc/fstab` file and add the following line:
 ```
 //nasr.man.ac.uk/epsrss$/snapped/replicated/taiist /mnt/isilon cifs username=<your username>,password=<university password>,domain=ds.man.ac.uk,uid=1000,gid=1000,auto
 ```
 
-Reboot the VM
+Reboot the VM. Check the connection to Isilon is established by navigating to `/mnt/isilon/PGFuzz_Runs`
 
-### 3. Make PX4 and JMavsim
+### 3. Open QGroundControl
 
->💡*Efforts to automate running PGFuzz, and data collection are ongoing. For now, please follow these steps.*
+Open a new terminal tab/window and run the following command:
+`~/Downloads/QGroundControl.AppImage`
 
+The QGroundControl window should now open. There may be scary / confusing log outputs from QGroundControl but these are normal.
+
+### 4. Run PGfuzz
+
+Open a new terminal window. Run `cd ~/pgfuzz/PX4 && python2 pgfuzz.py -i false`
+
+PGFuzz will now be running on your machine. Please refer to README.md for what all the windows / logs mean. 
+
+## Running Fuzzing Manually 
+
+These steps can be done in lieu of step 3 in case of issues with `pgfuzz.py`
+
+### 1. Make PX4 and JMavsim
 
 > ⚠️
 > **Cleaning between runs is required whenever restarting the PX4 after a crash / error / etc. Otherwise PX4/Jmavsim will restart with the drone still in the crashed / errored / etc. state.**
@@ -43,14 +60,7 @@ make px4_sitl_default jmavsim
 Wait until the Jmavsim window appears. It should look like this:
 ![JmavSim Window](img/image.png)
 
-### 4. Open QGroundControl
-
-Open a new terminal tab/window and run the following command:
-`~/Downloads/QGroundControl.AppImage`
-
-The QGroundControl window should now open. There may be scary / confusing log outputs from QGroundControl but these are normal.
-
-### 5. Run Fuzzing
+### 2. Run Fuzzing
 
 Open a new terminal tab / window and run the following commands
 ```
@@ -92,5 +102,6 @@ Two files are outputted per fuzzing run:
 
 There is an additional file ulg_mappings.txt that maps the .ulg file end time with the run Id. This should come useful in collecting relevant run data in the future. 
 
-
+### Metadata definitions
+* 
 

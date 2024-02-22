@@ -490,7 +490,7 @@ def handle_heartbeat(msg):
 
     global drone_status
     drone_status = msg.system_status
-    #print("[DEBUG] Drone status: %d, mavlink version: %d" % (drone_status, msg.mavlink_version))
+    print("[DEBUG] Drone status: %d, mavlink version: %d" % (drone_status, msg.mavlink_version))
 
     is_armed = msg.base_mode & mavutil.mavlink.MAV_MODE_FLAG_SAFETY_ARMED
     is_enabled = msg.base_mode & mavutil.mavlink.MAV_MODE_FLAG_GUIDED_ENABLED
@@ -704,7 +704,6 @@ def handle_status(msg):
     # Detecting a GPS failsafe
     elif "Failsafe enabled: no global position" in msg.text:
         gps_failsafe_error = 1
-
     # ------------------------------------------------------------------------------------
 
 # ------------------------------------------------------------------------------------
@@ -976,7 +975,7 @@ def calculate_distance(guidance):
 
     # print('[Debug] stable_counter:%d' %stable_counter)
     # print('[Debug] alt_avg:%f (previous_alt:%f, current_alt:%f), roll_avg:%f, pitch_avg:%f, heading_avg:%f' %(alt_avg, previous_alt, current_alt, roll_avg, pitch_avg, heading_avg))
-    print('[Debug] lat_avg:%f, home_lat:%f, lon_avg:%f, home_lon:%f' % (lat_avg, home_lat, lon_avg, home_lon))
+    #print('[Debug] lat_avg:%f, home_lat:%f, lon_avg:%f, home_lon:%f' % (lat_avg, home_lat, lon_avg, home_lon))
 
     position_cnt = 0
     stable_counter = 0
@@ -2184,6 +2183,7 @@ def initial_testing_and_arming(fuzz_during_mission, waypoints):
     global goal_throttle
     global Current_policy
     global Precondition_path
+    global waypoint_count
 
     for i in range(30):
         P.append(0)
@@ -2334,7 +2334,9 @@ def initial_testing_and_arming(fuzz_during_mission, waypoints):
         time.sleep(20)
     else:
         #change_flight_mode("altitude")
-        change_flight_mode("hold")
+        #change_flight_mode("hold")
+
+        master.mav.command_long_send(1, 1, mavutil.mavlink.MAV_CMD_MISSION_START, 0, 0, 0, 0, 0, 0, 0, 0)
 
     # Set some preconditions to test a policy
     # To do: when I switch to another target policy, I need to update the 'Precondition_path'.
@@ -2426,7 +2428,7 @@ while True:
 # # Adrian's main loop:
 test_id = str(randint(0, 1000))
 
-fuzz_during_mission = True
+fuzz_during_mission = False
 random_num_fuzzes = True
 num_fuzzes = random.randint(10,30) if random_num_fuzzes else 20
 
@@ -2457,6 +2459,7 @@ if use_saved_fuzz:
     num_fuzzes = len(saved_fuzzes) # Overwrites
 
 initial_testing_and_arming(fuzz_during_mission, waypoints)
+num_fuzzes = 0
 for f in range(num_fuzzes):
     global drone_status
     global home_altitude
@@ -2477,6 +2480,9 @@ for f in range(num_fuzzes):
         print("Drone_status:%d" %drone_status)
         # initial_testing_and_arming()
 
+# Wait for mission to finish if not fuzzing
+if not fuzz_during_mission:
+    time.sleep(270)
 
 
 run_parameters = {
