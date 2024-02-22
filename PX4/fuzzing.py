@@ -118,7 +118,7 @@ Previous_distance = []
 target_param = ""
 target_param_ready = 0
 target_param_value = 0
-
+policy_violation = False
 REBOOT_START = 0
 
 # A pair of input (input, value)
@@ -152,6 +152,20 @@ target_yaw = 1500
 
 SAVED_DATA_DIR = "./saved_data"
 
+metadata = {
+    "autopilot": "PX4",
+    "simulator": "JMavSim",
+    "pgfuzz_commit": subprocess.check_output("git rev-parse HEAD", shell=True)[:-1],
+    "px4_commit": subprocess.check_output("cd " + os.environ["PX4_HOME"] + " && git rev-parse HEAD", shell=True)[:-1],
+    "vm_version": os.environ.get("VM_VERSION", "Not applicable"),
+    "reduced_parameters": True, # Didn't fuzz on all possible variables
+    "reduction_method": "PGFuzz", # Can try LLM method to choose variables too
+    "parameter_min": PARAM_MIN,
+    "parameter_max": PARAM_MAX,
+    "policy_guided": False,
+    "copy_to_isilon": True
+}
+
 #------------------------------------------------------------------------------------
 def check_liveness():
     # If the RV does not response within 5 seconds, we consider the RV's program crashed.
@@ -163,6 +177,7 @@ def check_liveness():
         if heartbeat_cnt < 1:
             print("***************Simulator Crash!***************")
             print("This could be due to a policy violation or otherwise")
+            policy_violation = True
             store_policy_violating_inputs()
             # The RV software is crashed
             f = open("shared_variables.txt", "w")
@@ -795,6 +810,7 @@ def print_distance(G_dist, P_dist, length, policy, guid):
 
     if G_dist < 0:
         print("***************Policy violation!***************")
+        policy_violation = True
         store_policy_violating_inputs()
 
         # If we detect a policy violation, let's restart the simulator
@@ -2462,31 +2478,25 @@ for f in range(num_fuzzes):
         # initial_testing_and_arming()
 
 
-metadata = {
-    "autopilot": "PX4",
-    "simulator": "JMavSim",
-    "pgfuzz_commit": subprocess.check_output("git rev-parse HEAD", shell=True)[:-1],
-    "px4_commit": subprocess.check_output("cd " + os.environ["PX4_HOME"] + " && git rev-parse HEAD", shell=True)[:-1],
-    "vm_version": os.environ.get("VM_VERSION", "Not applicable"),
-    "reduced_parameters": True, # Didn't fuzz on all possible variables
-    "reduction_method": "PGFuzz", # Can try LLM method to choose variables too
-    "parameter_min": PARAM_MIN,
-    "parameter_max": PARAM_MAX,
+
+run_parameters = {
     "use_saved_fuzz": use_saved_fuzz,
     "saved_fuzz_loc": saved_fuzz_loc,
-    "policy_guided": False,
-    "policy_violated": False,
     "fuzz_during_mission": fuzz_during_mission,
     "random_mission": random_mission,
     "use_saved_mission": use_saved_mission,
     "saved_mission_loc": saved_mission_loc,
     "mission": waypoints,
     "random_num_fuzzes": random_num_fuzzes,
-    "copy_to_isilon": True
+    "policy_violated": policy_violation,
 }
 
+metadata.update(run_parameters)
 save_run_information(test_id, metadata)
 print("Test ID: " + test_id )
 print("#"*30, "\n")
 print("#"*30, "\n")
 print("#"*30, "\n")
+
+# Fuzzing has finished, relaunched simulator
+re_launch()
