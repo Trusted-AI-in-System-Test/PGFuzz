@@ -17,9 +17,9 @@ print("PX4_HOME:%s" %PX4_HOME)
 c = 'cd ' + PX4_HOME + ' && make clean && make distclean && make px4_sitl_default jmavsim'
 #print("[DEBUG] Command:%s" %c)
 
-#handle = Popen(c, stdin=PIPE, stderr=PIPE, stdout=PIPE, shell=True)
 handle = Popen(c, shell=True)
-
+# Random sleep line makes sure terminal window spawns. I have 0 idea why.
+time.sleep(1)
 # os.killpg(os.getpgid(handle.pid), signal.SIGTERM)
 
 while True:
@@ -35,4 +35,4 @@ while True:
 
         os.killpg(os.getpgid(handle.pid), signal.SIGTERM)
 
-    time.sleep(1)
+    time.sleep(10)

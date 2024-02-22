@@ -44,13 +44,15 @@ def main(argv):
 
 	open("restart.txt", "w").close()
 	open("iteration.txt", "w").close()
-
+	
 	c = 'gnome-terminal -- python2 ' + PGFUZZ_HOME + 'PX4/open_simulator.py &'
 	handle = Popen(c, stdin=PIPE, stderr=PIPE, stdout=PIPE, shell=True)
-
+	
 	# Sleep to allow sufficient time for simulator to start
-	time.sleep(120)
-	c = 'gnome-terminal -- python2 ' + PGFUZZ_HOME + 'PX4/fuzzing.py -i ' + input_type + '&'
+	time.sleep(60)
+	print("Running funner")
+	
+	c = 'gnome-terminal -- python2 ' + PGFUZZ_HOME + 'PX4/fuzzing.py &'
 	handle = Popen(c, stdin=PIPE, stderr=PIPE, stdout=PIPE, shell=True)
 
 
@@ -60,12 +62,11 @@ def main(argv):
 	f2.close()
 
 	while True:
-		## Sleep between runs to allow for sufficent length runs
-		time.sleep(60)
-
+		
 		f = open("restart.txt", "r")
 
 		if f.read() == "restart":
+			print("Restarting fuzzing")
 			f.close()
 			open("restart.txt", "w").close()
 
@@ -79,9 +80,11 @@ def main(argv):
 			handle = Popen(c, stdin=PIPE, stderr=PIPE, stdout=PIPE, shell=True)
 
 
-			time.sleep(50)
+			time.sleep(60)
 			c = 'gnome-terminal -- python2 ' + PGFUZZ_HOME + 'PX4/fuzzing.py &'
 			handle = Popen(c, stdin=PIPE, stderr=PIPE, stdout=PIPE, shell=True)
+		
+		time.sleep(10)
 
 if __name__ == "__main__":
    main(sys.argv[1:])
