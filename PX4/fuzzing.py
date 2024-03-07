@@ -2473,16 +2473,16 @@ if random_mission:
         wp_y =  random.uniform(takeoff[1]-random_mission_radius, takeoff[1]+random_mission_radius)
         waypoints.append((wp_x, wp_y))
 
-use_saved_mission = False
-saved_mission_loc = "./saved_data/000_metadata.json"
+use_saved_mission = metadata["use_saved_mission"]
+saved_mission_loc = metadata["saved_mission_loc"]
 if use_saved_mission:
     saved_mission_file = open(saved_mission_loc, "r")
-    saved_mission_dict = json.load(saon_file)
+    saved_mission_dict = json.load(saved_mission_file)
     saved_mission_file.close()
     waypoints = saved_mission_dict["mission"]
 
-use_saved_fuzz = False
-saved_fuzz_loc = "./saved_data/000_commands.txt"
+use_saved_fuzz = metadata["use_saved_fuzz"]
+saved_fuzz_loc = metadata["saved_fuzz_location"]
 if use_saved_fuzz:     
     saved_fuzz_file = open(saved_mission_dict["fuzzed_commands"], "r")
     saved_fuzzes = saved_fuzz_file.readlines()
