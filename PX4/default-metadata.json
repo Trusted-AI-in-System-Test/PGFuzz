@@ -1,0 +1,15 @@
+{
+    "autopilot": "PX4",
+    "simulator": "JMavSim",
+    "reduced_parameters": true,
+    "policy_guided": false,
+    "copy_to_isilon": false,
+    "fuzz_during_mission": false,
+    "mission_type": "random",
+    "number_of_waypoints": "random",
+    "saved_mission_loc": "",
+    "use_saved_fuzz": false,
+    "saved_fuzz_location": "",
+    "num_fuzzes": "random",
+    "random_num_fuzzes": 0
+}

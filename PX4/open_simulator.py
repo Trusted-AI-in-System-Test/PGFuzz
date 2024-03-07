@@ -14,7 +14,7 @@ if PX4_HOME is None:
 
 print("PX4_HOME:%s" %PX4_HOME)
 
-c = 'cd ' + PX4_HOME + ' && make clean && make distclean && make px4_sitl_default jmavsim'
+c = 'cd ' + PX4_HOME + '&& make clean && make distclean && make px4_sitl_default jmavsim'
 #print("[DEBUG] Command:%s" %c)
 
 handle = Popen(c, shell=True)

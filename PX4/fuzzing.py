@@ -21,9 +21,10 @@ sys.path.append(os.path.join(os.path.dirname(os.path.realpath(__file__)), '../ma
 from pymavlink import mavutil, mavwp
 from pymavlink import mavextra
 from pymavlink import mavexpression
-from save_data import dump_command_log, save_run_information, extract_ulg
+from metadata_IO import dump_command_log, save_run_information, save_ulg, pull_metadata
 import read_inputs
 import shared_variables
+import shapefile
 
 import re
 import math
@@ -49,6 +50,7 @@ goal_throttle = 0
 executing_commands = 0
 PARAM_MIN = 1
 PARAM_MAX = 10000
+METADATA_FILE = ""
 required_min_thr = 975
 
 current_roll = 0.0
@@ -155,16 +157,12 @@ SAVED_DATA_DIR = "./saved_data"
 metadata = {
     "autopilot": "PX4",
     "simulator": "JMavSim",
-    "pgfuzz_commit": subprocess.check_output("git rev-parse HEAD", shell=True)[:-1],
-    "px4_commit": subprocess.check_output("cd " + os.environ["PX4_HOME"] + " && git rev-parse HEAD", shell=True)[:-1],
-    "vm_version": os.environ.get("VM_VERSION", "Not applicable"),
     "reduced_parameters": True, # Didn't fuzz on all possible variables
-    "reduction_method": "PGFuzz", # Can try LLM method to choose variables too
-    "parameter_min": PARAM_MIN,
-    "parameter_max": PARAM_MAX,
     "policy_guided": False,
-    "copy_to_isilon": True
+    "copy_to_isilon": False,
+    "number_of_waypoints": 5
 }
+LAND_POINTS = shapefile.Reader("./ne_10m_land.shp").shapes()
 
 #------------------------------------------------------------------------------------
 def check_liveness():
@@ -365,12 +363,14 @@ def change_parameter(selected_param):
 
 # ------------------------------------------------------------------------------------
 def cmd_set_home(home_location, altitude):
+    print(home_location)
+    print(altitude)
     #print '--- ', master.target_system, ',', master.target_component
     print("--- %d, %d", master.target_system, master.target_component)
     master.mav.command_long_send(
         master.target_system, master.target_component,
         mavutil.mavlink.MAV_CMD_DO_SET_HOME,
-        1, # set position
+        0, # set position
         0, # param1
         0, # param2
         0, # param3
@@ -490,7 +490,7 @@ def handle_heartbeat(msg):
 
     global drone_status
     drone_status = msg.system_status
-    print("[DEBUG] Drone status: %d, mavlink version: %d" % (drone_status, msg.mavlink_version))
+    # print("[DEBUG] Drone status: %d, mavlink version: %d" % (drone_status, msg.mavlink_version))
 
     is_armed = msg.base_mode & mavutil.mavlink.MAV_MODE_FLAG_SAFETY_ARMED
     is_enabled = msg.base_mode & mavutil.mavlink.MAV_MODE_FLAG_GUIDED_ENABLED
@@ -793,7 +793,7 @@ def store_policy_violating_inputs():
     f_itr.close()
     
     dump_command_log(file_name, test_id)
-    extract_ulg(test_id, file_name[:-4] + "_run_log")
+    save_ulg(test_id, file_name[:-4] + "_run_log")
 
 # ------------------------------------------------------------------------------------
 def print_distance(G_dist, P_dist, length, policy, guid):
@@ -2135,6 +2135,7 @@ parse_parameters()
 def parse_command_line():
     global PARAM_MIN
     global PARAM_MAX
+    global METADATA_FILE
     global master
     global home_lat
     global home_lon
@@ -2143,7 +2144,7 @@ def parse_command_line():
     # Parse command line arguments (i.e., input and output file)
     f_input_type = open("input_mutation_type.txt", "r")
     input_type = f_input_type.readline()
-    if input_type == 'true':
+    if input_type == 'true\n':
         print("[DEBUG] User chooses bounded input mutation")
         PARAM_MIN = 1
         PARAM_MAX = 10000
@@ -2151,8 +2152,13 @@ def parse_command_line():
         print("[DEBUG] User chooses unbounded input mutation")
         PARAM_MIN = 1
         PARAM_MAX = 999999999999
+    
+    input_type = f_input_type.readline()
+    print("[DEBUG] Reading files from " + input_type)
+    METADATA_FILE = input_type
     # (End) Parse command line arguments (i.e., input and output file)
 
+def start_mavlink():
     master.wait_heartbeat()
 
     # request data to be sent at the given rate
@@ -2173,7 +2179,24 @@ def parse_command_line():
     home_lon = home_lon / 1000
     home_lon = home_lon * 1000
     print("home_lat: %f, home_lon: %f" % (home_lat, home_lon))
-parse_command_line()
+
+
+def build_px4(lat, lon):
+    print("Waiting on PX4 build...")
+    f = open("shared_variables.txt", "w")
+    f.writelines(["build\n", str(lat)+","+str(lon)])
+    f.close()
+
+    time.sleep(115)
+    while True:
+        time.sleep(5)
+        f = open("shared_variables.txt", "r")
+        if f.read() == "":
+            f.close()
+            break
+
+        f.close()
+        
 
 #------------------------------------------------------------------------------------
 def initial_testing_and_arming(fuzz_during_mission, waypoints):
@@ -2195,7 +2218,7 @@ def initial_testing_and_arming(fuzz_during_mission, waypoints):
         seq = waypoint[0]
         lat, lon = waypoint[1]
         #lon = waypoint[1]
-        altitude = 500
+        altitude = randint(500, 1000)
         autocontinue = 1
         current = 0
         param1 = 15.0 # minimum pitch
@@ -2204,20 +2227,15 @@ def initial_testing_and_arming(fuzz_during_mission, waypoints):
             current = 1
             p = mavutil.mavlink.MAVLink_mission_item_message(master.target_system, master.target_component, seq, frame,
                 mavutil.mavlink.MAV_CMD_NAV_TAKEOFF,
-                current, autocontinue, param1, 0, 0, 0, lat, lon, altitude)
+                current, autocontinue, param1, 0, 0, 0, lat, lon, 500)
         elif seq == len(waypoints) - 1: # last waypoint to land
             p = mavutil.mavlink.MAVLink_mission_item_message(master.target_system, master.target_component, seq, frame,
-                mavutil.mavlink.MAV_CMD_NAV_WAYPOINT,
-                current, autocontinue, 0, 0, 0, 0, lat, lon, altitude)
-            """
-            p = mavutil.mavlink.MAVLink_mission_item_message(master.target_system, master.target_component, seq, frame,
                 mavutil.mavlink.MAV_CMD_NAV_LAND,
-                current, autocontinue, 0, 0, 0, 0, lat, lon, altitude)
-            """
+                current, autocontinue, 0, 0, 0, float("NaN"), waypoints[0][0], waypoints[0][1], altitude)
         else:
             p = mavutil.mavlink.MAVLink_mission_item_message(master.target_system, master.target_component, seq, frame,
                 mavutil.mavlink.MAV_CMD_NAV_WAYPOINT,
-                current, autocontinue, 0, 0, 0, 0, lat, lon, altitude)
+                current, autocontinue, 0, 0, 0, float("NaN"), lat, lon, altitude)
         wp.add(p)
 
     # Send Home location
@@ -2226,7 +2244,7 @@ def initial_testing_and_arming(fuzz_during_mission, waypoints):
     msg = master.recv_match(type=['COMMAND_ACK'],blocking=True)
     print("%s" % msg)
     print("Set home location: %f, %f" %(home_location[0], home_location[1]))
-
+    
     #time.sleep(1)
 
     # Send Waypoint to airframe
@@ -2424,20 +2442,33 @@ while True:
             print("@@@@@@@@@@ Drone losts control. It is in mayday and going down @@@@@@@@@@")
 """
 
+def generate_land_point():
+    random_shape = random.choice(LAND_POINTS)
+    random_point = random.choice(random_shape.points)
+    random_point = list(random_point)
+
+    random_point[0] = round(random_point[0], 5)
+    random_point[1] = round(random_point[1], 5)
+
+    return random_point
+
 #------------------------------------------------------------------------------------
 # # Adrian's main loop:
 test_id = str(randint(0, 1000))
+parse_command_line()
+metadata = pull_metadata(METADATA_FILE)
 
-fuzz_during_mission = False
-random_num_fuzzes = True
+fuzz_during_mission = metadata["fuzz_during_mission"]
+random_num_fuzzes = metadata["random_num_fuzzes"]
 num_fuzzes = random.randint(10,30) if random_num_fuzzes else 20
 
 random_mission = True
 random_mission_radius = 0.0005000000
 if random_mission:
-    takeoff = (35.5090904347, 127.045094298)
+    #takeoff = (35.5090904347, 127.045094298)
+    takeoff = generate_land_point()
     waypoints = [takeoff]
-    for wp_i in range(4):
+    for wp_i in range(metadata["number_of_waypoints"]):
         wp_x =  random.uniform(takeoff[0]-random_mission_radius, takeoff[0]+random_mission_radius)
         wp_y =  random.uniform(takeoff[1]-random_mission_radius, takeoff[1]+random_mission_radius)
         waypoints.append((wp_x, wp_y))
@@ -2446,7 +2477,7 @@ use_saved_mission = False
 saved_mission_loc = "./saved_data/000_metadata.json"
 if use_saved_mission:
     saved_mission_file = open(saved_mission_loc, "r")
-    saved_mission_dict = json.load(saved_mission_file)
+    saved_mission_dict = json.load(saon_file)
     saved_mission_file.close()
     waypoints = saved_mission_dict["mission"]
 
@@ -2458,6 +2489,9 @@ if use_saved_fuzz:
     saved_fuzz_file.close()
     num_fuzzes = len(saved_fuzzes) # Overwrites
 
+
+build_px4(waypoints[0][0], waypoints[0][1])
+start_mavlink()
 initial_testing_and_arming(fuzz_during_mission, waypoints)
 num_fuzzes = 0
 for f in range(num_fuzzes):
@@ -2465,36 +2499,33 @@ for f in range(num_fuzzes):
     global home_altitude
     global current_altitude
 
-    if True: #drone_status == 4:
-        if use_saved_fuzz:
-            read_up_cmd(saved_fuzzes[f])
-        else:
-            pick_up_cmd()
-
-        time.sleep(5)
-
-        for i in range(4):
-            set_rc_channel_pwm(i + 1, 1500)
+    if use_saved_fuzz:
+        read_up_cmd(saved_fuzzes[f])
     else:
-        print("Drone is no longer active.")
-        print("Drone_status:%d" %drone_status)
-        # initial_testing_and_arming()
+        pick_up_cmd()
 
-# Wait for mission to finish if not fuzzing
-if not fuzz_during_mission:
-    time.sleep(270)
+    time.sleep(5)
+
+    for i in range(4):
+        set_rc_channel_pwm(i + 1, 1500)
+
+# Wait for mission to finish
+while drone_status != 3:
+    time.sleep(5)
+
+print("Mission complete - restarting")
+
 
 
 run_parameters = {
-    "use_saved_fuzz": use_saved_fuzz,
-    "saved_fuzz_loc": saved_fuzz_loc,
-    "fuzz_during_mission": fuzz_during_mission,
-    "random_mission": random_mission,
-    "use_saved_mission": use_saved_mission,
-    "saved_mission_loc": saved_mission_loc,
-    "mission": waypoints,
+    "pgfuzz_commit": subprocess.check_output("git rev-parse HEAD", shell=True)[:-1],
+    "px4_commit": subprocess.check_output("cd " + os.environ["PX4_HOME"] + " && git rev-parse HEAD", shell=True)[:-1],
+    "vm_version": os.environ.get("VM_VERSION", "Not applicable"),
+    "mission_waypoints": waypoints,
     "random_num_fuzzes": random_num_fuzzes,
     "policy_violated": policy_violation,
+    "parameter_min": PARAM_MIN,
+    "parameter_max": PARAM_MAX
 }
 
 metadata.update(run_parameters)
