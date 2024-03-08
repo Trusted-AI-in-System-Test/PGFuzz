@@ -7,7 +7,7 @@
 
 import sys, os
 from optparse import OptionParser
-from random import randint
+from random import randint, uniform
 
 import time
 from datetime import datetime
@@ -21,6 +21,7 @@ sys.path.append(os.path.join(os.path.dirname(os.path.realpath(__file__)), '../ma
 from pymavlink import mavutil, mavwp
 from pymavlink import mavextra
 from pymavlink import mavexpression
+from shapely.geometry import shape, Point
 from metadata_IO import dump_command_log, save_run_information, save_ulg, pull_metadata
 import read_inputs
 import shared_variables
@@ -35,6 +36,8 @@ import json
 # Global variables
 # python /usr/local/bin/mavproxy.py --mav=/dev/tty.usbserial-DN01WM7R --baudrate 57600 --out udp:127.0.0.1:14540 --out udp:127.0.0.1:14550
 connection_string = '0.0.0.0:14540'
+test_id = 0
+metadata = {}
 master = mavutil.mavlink_connection('udp:' + connection_string)
 home_altitude = 0
 home_lat = 0
@@ -111,6 +114,7 @@ vertical_speed_series = 0.0
 gps_message_cnt = 0
 gps_failsafe_error = 0
 gps_failsafe_count = 0
+failsafe_enabled = True
 
 # Distance
 P = []
@@ -158,16 +162,17 @@ metadata = {
     "autopilot": "PX4",
     "simulator": "JMavSim",
     "reduced_parameters": True, # Didn't fuzz on all possible variables
-    "policy_guided": False,
     "copy_to_isilon": False,
     "number_of_waypoints": 5
 }
-LAND_POINTS = shapefile.Reader("./ne_10m_land.shp").shapes()
+shp = shapefile.Reader("./ne_50m_land.shp")
+LAND_POINTS = shp.shapes() 
 
 #------------------------------------------------------------------------------------
 def check_liveness():
     # If the RV does not response within 5 seconds, we consider the RV's program crashed.
     global heartbeat_cnt
+    global policy_violation
 
     end_flag = 0
     while end_flag == 0:
@@ -659,6 +664,7 @@ def handle_status(msg):
     global drone_status
     global takeoff
     global gps_failsafe_error
+    global failsafe_enabled
 
     status_data = (msg.severity, msg.text)
     print("[status_text] %s" % msg.text)
@@ -704,6 +710,10 @@ def handle_status(msg):
     # Detecting a GPS failsafe
     elif "Failsafe enabled: no global position" in msg.text:
         gps_failsafe_error = 1
+        failsafe_enabled = True
+    
+    elif "Failsafe enabled:" in msg.text:
+        failsafe_enabed = True
     # ------------------------------------------------------------------------------------
 
 # ------------------------------------------------------------------------------------
@@ -787,7 +797,7 @@ def read_loop():
 # ------------------------------------------------------------------------------------
 def store_policy_violating_inputs():   
     f_itr = open("iteration.txt", "r")
-    file_name = "policy_violations/"
+    file_name = "policy_violations/" + str(test_id) + "/"
     file_name += f_itr.read()
     file_name += "-policy_violation.txt"
     f_itr.close()
@@ -2381,148 +2391,179 @@ waypoints = [
     (35.5061713129, 127.044741936),
     (35.5078823794, 127.046914506)
     ]
+
+def generate_land_point():
+    random_shape = random.choice(LAND_POINTS)
+    
+    shape_rep = shape(random_shape)
+    bbox = random_shape.bbox
+    on_land = False
+    
+    while not on_land:
+        x = round(uniform(bbox[0],bbox[2]), 10)
+        y = round(uniform(bbox[1],bbox[3]), 10)
+        point = Point(x,y)
+        on_land = shape_rep.contains(point)
+    
+    result = [point.y, point.x]
+    return result
 # --------------------- (End) Initialisation and testing -----------------------------
+
 
 
 #------------------------------------------------------------------------------------
 # Original's main loop:
-"""
-initial_testing_and_arming(False, waypoints)
-while True:
-    global drone_status
-    global executing_commands
-    global home_altitude
-    global current_altitude
-    global Armed
-    global Parachute_on
-    global count_main_loop
-    global goal_throttle
-    global RV_alive
+def original_pgfuzz():
+    global test_id
+    global metadata
 
-    print("[Debug] drone_status:%d" %drone_status)
-    print("[Debug] Vehicle is grounded, Home alt:%f, Current alt:%f" % (home_altitude, current_altitude))
+    test_id = str(randint(0, 1000))
+    build_px4(waypoints[0][0], waypoints[0][1])
+    start_mavlink()
+    initial_testing_and_arming(True, waypoints)
+    while True:
+        global drone_status
+        global executing_commands
+        global home_altitude
+        global current_altitude
+        global Armed
+        global Parachute_on
+        global count_main_loop
+        global goal_throttle
+        global RV_alive
 
-    # if RV is still active state
-    if drone_status == 4:
-        Armed = 1
-        executing_commands = 1
-        print("### Next round (%d) for fuzzing commands. ###" % count_main_loop)
-        count_main_loop += 1
+        print("[Debug] drone_status:%d" %drone_status)
+        print("[Debug] Vehicle is grounded, Home alt:%f, Current alt:%f" % (home_altitude, current_altitude))
 
-        # Calculate propositional and global distances
-        calculate_distance(guidance="false")
+        # if RV is still active state
+        if drone_status == 4:
+            Armed = 1
+            executing_commands = 1
+            print("### Next round (%d) for fuzzing commands. ###" % count_main_loop)
+            count_main_loop += 1
 
-        pick_up_cmd()
+            # Calculate propositional and global distances
+            calculate_distance(guidance="false")
 
-        # Calculate distances to evaluate effect of the executed input
-        time.sleep(3)
-        calculate_distance(guidance="true")
-        goal_throttle = 1500
+            pick_up_cmd()
+
+            # Calculate distances to evaluate effect of the executed input
+            time.sleep(3)
+            calculate_distance(guidance="true")
+            goal_throttle = 1500
+
+            for i in range(4):
+                set_rc_channel_pwm(i + 1, 1500)
+
+            if Parachute_on == 1:
+                Armed = 0
+                re_launch()
+                count_main_loop = 0
+            
+
+        # The vehicle is grounded
+        if (current_altitude < home_altitude) or ((drone_status == 3) and (RV_alive == 1)):
+            #print("[Debug] drone_status:%d" % drone_status)
+            print("### Vehicle is grounded, Home alt:%f, Current alt:%f" % (home_altitude, current_altitude))
+            Armed = 0
+            count_main_loop = 0
+        
+        if (drone_status == 3):
+            print("End of mission")
+            break
+
+        # It is in mayday and going down
+        if drone_status == 6:
+            Armed = 0
+            for i in range(1, 5):
+                print("@@@@@@@@@@ Drone losts control. It is in mayday and going down @@@@@@@@@@")
+            
+        
+
+
+#------------------------------------------------------------------------------------
+# # Adrian's main loop:
+
+def stupid_or_no_pgfuzz():
+    global test_id
+
+    test_id = str(randint(0, 1000))
+    
+
+    fuzz_during_mission = metadata["fuzz_during_mission"]
+    random_num_fuzzes = metadata["random_num_fuzzes"]
+    num_fuzzes = random.randint(10,30) if random_num_fuzzes else 20
+
+    random_mission = metadata["mission_type"] == "random"
+    random_mission_radius = 0.0005000000
+    if random_mission:
+        takeoff = generate_land_point()
+        waypoints = [takeoff]
+        for wp_i in range(metadata["number_of_waypoints"]):
+            wp_x =  random.uniform(takeoff[0]-random_mission_radius, takeoff[0]+random_mission_radius)
+            wp_y =  random.uniform(takeoff[1]-random_mission_radius, takeoff[1]+random_mission_radius)
+            waypoints.append((wp_x, wp_y))
+
+    use_saved_mission = metadata["use_saved_mission"]
+    saved_mission_loc = metadata["saved_mission_loc"]
+    if use_saved_mission:
+        saved_mission_file = open(saved_mission_loc, "r")
+        saved_mission_dict = json.load(saved_mission_file)
+        saved_mission_file.close()
+        waypoints = saved_mission_dict["mission"]
+
+    use_saved_fuzz = metadata["use_saved_fuzz"]
+    saved_fuzz_loc = metadata["saved_fuzz_location"]
+    if use_saved_fuzz:     
+        saved_fuzz_file = open(saved_mission_dict["fuzzed_commands"], "r")
+        saved_fuzzes = saved_fuzz_file.readlines()
+        saved_fuzz_file.close()
+        num_fuzzes = len(saved_fuzzes) # Overwrites
+
+
+    build_px4(waypoints[0][0], waypoints[0][1])
+    start_mavlink()
+    initial_testing_and_arming(fuzz_during_mission, waypoints)
+    num_fuzzes = 0
+    for f in range(num_fuzzes):
+        global drone_status
+        global home_altitude
+        global current_altitude
+
+        if use_saved_fuzz:
+            read_up_cmd(saved_fuzzes[f])
+        else:
+            pick_up_cmd()
+
+        time.sleep(5)
 
         for i in range(4):
             set_rc_channel_pwm(i + 1, 1500)
 
-        if Parachute_on == 1:
-            Armed = 0
+    # Wait for mission to finish
+    while drone_status != 3:
+        calculate_distance(guidance="false")
+
+        if failsafe_enabled and (not metadata["fuzz_during_mission"]):
+            print("Run is interesting - discard")
             re_launch()
-            count_main_loop = 0
+        time.sleep(5)
 
-    # The vehicle is grounded
-    if (current_altitude < home_altitude) or ((drone_status == 3) and (RV_alive == 1)):
-        #print("[Debug] drone_status:%d" % drone_status)
-        print("### Vehicle is grounded, Home alt:%f, Current alt:%f" % (home_altitude, current_altitude))
-        Armed = 0
-        re_launch()
-        count_main_loop = 0
+    print("Mission complete - restarting")
 
-    # It is in mayday and going down
-    if drone_status == 6:
-        Armed = 0
-        for i in range(1, 5):
-            print("@@@@@@@@@@ Drone losts control. It is in mayday and going down @@@@@@@@@@")
-"""
-
-def generate_land_point():
-    random_shape = random.choice(LAND_POINTS)
-    random_point = random.choice(random_shape.points)
-    random_point = list(random_point)
-
-    random_point[0] = round(random_point[0], 5)
-    random_point[1] = round(random_point[1], 5)
-
-    return random_point
-
-#------------------------------------------------------------------------------------
-# # Adrian's main loop:
-test_id = str(randint(0, 1000))
 parse_command_line()
 metadata = pull_metadata(METADATA_FILE)
 
-fuzz_during_mission = metadata["fuzz_during_mission"]
-random_num_fuzzes = metadata["random_num_fuzzes"]
-num_fuzzes = random.randint(10,30) if random_num_fuzzes else 20
-
-random_mission = True
-random_mission_radius = 0.0005000000
-if random_mission:
-    #takeoff = (35.5090904347, 127.045094298)
-    takeoff = generate_land_point()
-    waypoints = [takeoff]
-    for wp_i in range(metadata["number_of_waypoints"]):
-        wp_x =  random.uniform(takeoff[0]-random_mission_radius, takeoff[0]+random_mission_radius)
-        wp_y =  random.uniform(takeoff[1]-random_mission_radius, takeoff[1]+random_mission_radius)
-        waypoints.append((wp_x, wp_y))
-
-use_saved_mission = metadata["use_saved_mission"]
-saved_mission_loc = metadata["saved_mission_loc"]
-if use_saved_mission:
-    saved_mission_file = open(saved_mission_loc, "r")
-    saved_mission_dict = json.load(saved_mission_file)
-    saved_mission_file.close()
-    waypoints = saved_mission_dict["mission"]
-
-use_saved_fuzz = metadata["use_saved_fuzz"]
-saved_fuzz_loc = metadata["saved_fuzz_location"]
-if use_saved_fuzz:     
-    saved_fuzz_file = open(saved_mission_dict["fuzzed_commands"], "r")
-    saved_fuzzes = saved_fuzz_file.readlines()
-    saved_fuzz_file.close()
-    num_fuzzes = len(saved_fuzzes) # Overwrites
-
-
-build_px4(waypoints[0][0], waypoints[0][1])
-start_mavlink()
-initial_testing_and_arming(fuzz_during_mission, waypoints)
-num_fuzzes = 0
-for f in range(num_fuzzes):
-    global drone_status
-    global home_altitude
-    global current_altitude
-
-    if use_saved_fuzz:
-        read_up_cmd(saved_fuzzes[f])
-    else:
-        pick_up_cmd()
-
-    time.sleep(5)
-
-    for i in range(4):
-        set_rc_channel_pwm(i + 1, 1500)
-
-# Wait for mission to finish
-while drone_status != 3:
-    time.sleep(5)
-
-print("Mission complete - restarting")
-
-
+if (not metadata["fuzz_during_mission"]) or metadata["reduced_parameters"]:
+    stupid_or_no_pgfuzz()
+else:
+    original_pgfuzz()
 
 run_parameters = {
     "pgfuzz_commit": subprocess.check_output("git rev-parse HEAD", shell=True)[:-1],
     "px4_commit": subprocess.check_output("cd " + os.environ["PX4_HOME"] + " && git rev-parse HEAD", shell=True)[:-1],
     "vm_version": os.environ.get("VM_VERSION", "Not applicable"),
     "mission_waypoints": waypoints,
-    "random_num_fuzzes": random_num_fuzzes,
     "policy_violated": policy_violation,
     "parameter_min": PARAM_MIN,
     "parameter_max": PARAM_MAX
