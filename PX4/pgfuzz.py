@@ -60,6 +60,7 @@ def main(argv):
 
 	open("restart.txt", "w").close()
 	open("iteration.txt", "w").close()
+	open("shared_variables.txt", "w").close()
 
 	c = 'gnome-terminal -- python2 ' + PGFUZZ_HOME + 'PX4/fuzzing.py &'
 	Popen(c, stdin=PIPE, stderr=PIPE, stdout=PIPE, shell=True)
@@ -114,11 +115,12 @@ def main(argv):
 		f2.close()
 
 		qgc_handle.kill()
+		handle.kill()
 		for proc in psutil.process_iter():
 			for process_name in ["QGroundControl", "QGroundControl.AppImage"]:
 				if process_name in proc.name():
 					proc.kill()
-
+			
 		c = 'gnome-terminal -- python2 ' + PGFUZZ_HOME + 'PX4/fuzzing.py &'
 		Popen(c, stdin=PIPE, stderr=PIPE, stdout=PIPE, shell=True)
 		
