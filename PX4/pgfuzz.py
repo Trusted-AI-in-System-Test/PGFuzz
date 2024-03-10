@@ -88,8 +88,23 @@ def main(argv):
 	f = open("shared_variables.txt", "w")
 	f.close()
 
+	while True:
+		f = open("shared_variables.txt")
+		if f.readline() == "openQgc":
+			lat_lon = f.readline().split(",")
+			f.close()
+			break
+		
+		f.close()
+		time.sleep(1)
+
 	print("Running QGroundControl")
 	qgc_handle = Popen("/home/pgfuzz/Downloads/QGroundControl.AppImage",stdin=PIPE, stderr=PIPE, stdout=PIPE, shell=True)
+
+	
+	f = open("shared_variables.txt", "w")
+	f.close()
+
 
 	iteration = 1
 	f2 = open("iteration.txt", "w")
@@ -147,9 +162,22 @@ def main(argv):
 		f = open("shared_variables.txt", "w")
 		f.close()
 
+		while True:
+			f = open("shared_variables.txt")
+			if f.readline() == "openQgc":
+				lat_lon = f.readline().split(",")
+				f.close()
+				break
+			
+			f.close()
+			time.sleep(1)
+
 		print("Running QGroundControl")
 		qgc_handle = Popen("/home/pgfuzz/Downloads/QGroundControl.AppImage",stdin=PIPE, stderr=PIPE, stdout=PIPE, shell=True)
 		
+		f = open("shared_variables.txt", "w")
+		f.close()
+
 
 
 if __name__ == "__main__":

@@ -114,7 +114,7 @@ vertical_speed_series = 0.0
 gps_message_cnt = 0
 gps_failsafe_error = 0
 gps_failsafe_count = 0
-failsafe_enabled = True
+failsafe_enabled = False
 
 # Distance
 P = []
@@ -163,7 +163,6 @@ metadata = {
     "simulator": "JMavSim",
     "reduced_parameters": True, # Didn't fuzz on all possible variables
     "copy_to_isilon": False,
-    "number_of_waypoints": 5
 }
 shp = shapefile.Reader("./ne_50m_land.shp")
 LAND_POINTS = shp.shapes() 
@@ -2207,6 +2206,22 @@ def build_px4(lat, lon):
 
         f.close()
         
+def open_QGC():
+    f = open("shared_variables.txt", "w")
+    f.write("openQgc")
+    f.close()
+
+    while True:
+        time.sleep(1)
+        f = open("shared_variables.txt", "r")
+        if f.read() == "":
+            f.close()
+            break
+
+        f.close()
+    
+    time.sleep(8)
+        
 
 #------------------------------------------------------------------------------------
 def initial_testing_and_arming(fuzz_during_mission, waypoints):
@@ -2224,6 +2239,13 @@ def initial_testing_and_arming(fuzz_during_mission, waypoints):
 
     wp = mavwp.MAVWPLoader()
     seq = 0
+
+    # Disable battery RTL failsafe (causes errors)
+    master.mav.param_set_send(master.target_system, master.target_component,
+                              "COM_LOW_BAT_ACT",
+                              0,
+                              mavutil.mavlink.MAV_PARAM_TYPE_INT32)
+    
     for waypoint in enumerate(waypoints):
         seq = waypoint[0]
         lat, lon = waypoint[1]
@@ -2352,7 +2374,7 @@ def initial_testing_and_arming(fuzz_during_mission, waypoints):
     guidance_log = open("guidance_log.txt", "w")
     guidance_log.close()
 
-
+    open_QGC()
     if fuzz_during_mission:
         # MISSION START
         master.mav.command_long_send(1, 1, mavutil.mavlink.MAV_CMD_MISSION_START, 0, 0, 0, 0, 0, 0, 0, 0)
@@ -2493,13 +2515,14 @@ def stupid_or_no_pgfuzz():
     fuzz_during_mission = metadata["fuzz_during_mission"]
     random_num_fuzzes = metadata["random_num_fuzzes"]
     num_fuzzes = random.randint(10,30) if random_num_fuzzes else 20
+    num_fuzzes = num_fuzzes if fuzz_during_mission else 0
 
     random_mission = metadata["mission_type"] == "random"
     random_mission_radius = 0.0005000000
     if random_mission:
         takeoff = generate_land_point()
         waypoints = [takeoff]
-        for wp_i in range(metadata["number_of_waypoints"]):
+        for wp_i in range(2):
             wp_x =  random.uniform(takeoff[0]-random_mission_radius, takeoff[0]+random_mission_radius)
             wp_y =  random.uniform(takeoff[1]-random_mission_radius, takeoff[1]+random_mission_radius)
             waypoints.append((wp_x, wp_y))
@@ -2524,7 +2547,6 @@ def stupid_or_no_pgfuzz():
     build_px4(waypoints[0][0], waypoints[0][1])
     start_mavlink()
     initial_testing_and_arming(fuzz_during_mission, waypoints)
-    num_fuzzes = 0
     for f in range(num_fuzzes):
         global drone_status
         global home_altitude
@@ -2544,9 +2566,7 @@ def stupid_or_no_pgfuzz():
     while drone_status != 3:
         calculate_distance(guidance="false")
 
-        if failsafe_enabled and (not metadata["fuzz_during_mission"]):
-            print("Run is interesting - discard")
-            re_launch()
+
         time.sleep(5)
 
     print("Mission complete - restarting")
