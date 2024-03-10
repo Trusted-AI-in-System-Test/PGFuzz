@@ -2240,11 +2240,22 @@ def initial_testing_and_arming(fuzz_during_mission, waypoints):
     wp = mavwp.MAVWPLoader()
     seq = 0
 
-    # Disable battery RTL failsafe (causes errors)
+    # Disable manual control loss RTL failsafe (causes errors)
     master.mav.param_set_send(master.target_system, master.target_component,
-                              "COM_LOW_BAT_ACT",
+                              "NAV_RCL_ACT",
                               0,
                               mavutil.mavlink.MAV_PARAM_TYPE_INT32)
+    
+    master.mav.param_set_send(master.target_system, master.target_component,
+                              "COM_DL_LOSS_T",
+                              295,
+                              mavutil.mavlink.MAV_PARAM_TYPE_INT32)
+                           
+    master.mav.param_set_send(master.target_system, master.target_component,
+                              "COM_FAIL_ACT_T",
+                              float(24.5),
+                              mavutil.mavlink.MAV_PARAM_TYPE_REAL32)
+                              
     
     for waypoint in enumerate(waypoints):
         seq = waypoint[0]
@@ -2522,7 +2533,7 @@ def stupid_or_no_pgfuzz():
     if random_mission:
         takeoff = generate_land_point()
         waypoints = [takeoff]
-        for wp_i in range(2):
+        for wp_i in range(metadata["number_of_waypoints"]):
             wp_x =  random.uniform(takeoff[0]-random_mission_radius, takeoff[0]+random_mission_radius)
             wp_y =  random.uniform(takeoff[1]-random_mission_radius, takeoff[1]+random_mission_radius)
             waypoints.append((wp_x, wp_y))
