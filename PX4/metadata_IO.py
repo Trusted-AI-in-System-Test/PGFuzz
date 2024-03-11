@@ -1,7 +1,7 @@
 import os
 import json
 import shutil
-
+import time 
 from random import randint
 from datetime import datetime
 from subprocess import call
@@ -27,14 +27,31 @@ def pull_metadata(filepath):
     result["number_of_waypoints"] = int(result["number_of_waypoints"])
     return result
 
-def save_ulg(test_id, output_folder, extract_ulg=False):
-    # Find most recently created ulg i.e. the one created from the most recent (our) run
+def __get_ulg_filepath():
     current_datetime = datetime.now()
     current_day = current_datetime.strftime("%Y-%m-%d")
     filepath = "/home/pgfuzz/pgfuzz/px4_pgfuzz/build/px4_sitl_default/rootfs/log/" + current_day
     files = [os.path.join(filepath, f) for f in os.listdir(filepath)]
 
     ulg_file_path =  max(files, key=os.path.getmtime)
+
+    return ulg_file_path
+
+def __check_ulg_exists():
+    file_path = __get_ulg_filepath()
+
+    for i in range(0, 50):
+        if os.path.isfile(file_path):
+            return True 
+        
+        time.sleep(5)
+    
+    return False
+
+def save_ulg(test_id, output_folder, extract_ulg=False):
+    # Find most recently created ulg i.e. the one created from the most recent (our) run
+    ulg_file_path = __get_ulg_filepath()
+
     ulg_copy_location = SAVE_PATH + "/" + test_id + "/run_log.ulg"
     shutil.copyfile(ulg_file_path, ulg_copy_location)   
     
@@ -44,6 +61,8 @@ def save_ulg(test_id, output_folder, extract_ulg=False):
 
 
 def dump_command_log(filename, test_id):
+    print("Checking ULG is saved")
+    
     _create_save_dir(test_id)
     
     filename = SAVE_PATH + "/" + test_id + "/" + filename
@@ -59,6 +78,13 @@ def dump_command_log(filename, test_id):
     mutated_log.close()
 
 def save_run_information(test_id, metadata):
+    ulg_exists = __check_ulg_exists()
+
+    if not ulg_exists:
+        print("No ULG file generated - no run will be saved")
+        time.sleep(5)
+        exit(-1)
+    
     _create_save_dir(test_id)
     
     current_datetime = datetime.now()
