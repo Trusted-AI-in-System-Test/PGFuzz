@@ -2050,8 +2050,8 @@ def pick_up_cmd():
     # input_type = 1
 
     # True: input mutated from guidance, False: randomly mutate an input
-    # Guidance_decision = random.choice([True, False])
-    Guidance_decision = False
+    Guidance_decision = random.choice([True, False])
+    Guidance_decision = False if metadata["reduced_parameters"] else Guidance_decision
 
     # b) Randomly select an input from the selected type of inputs
 
