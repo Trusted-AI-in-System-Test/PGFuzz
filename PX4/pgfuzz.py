@@ -132,7 +132,7 @@ def main(argv):
 		qgc_handle.kill()
 		handle.kill()
 		for proc in psutil.process_iter():
-			for process_name in ["QGroundControl", "QGroundControl.AppImage"]:
+			for process_name in ["QGroundControl"]:
 				if process_name in proc.name():
 					proc.kill()
 			
